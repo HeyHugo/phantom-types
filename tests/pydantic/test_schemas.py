@@ -1,6 +1,11 @@
+from collections.abc import Mapping
+from typing import Generic
+from typing import TypeVar
+
 import pydantic
 import pytest
 
+from phantom import Phantom
 from phantom.datetime import TZAware
 from phantom.datetime import TZNaive
 from phantom.ext.phonenumbers import FormattedPhoneNumber
@@ -14,6 +19,7 @@ from phantom.interval import NegativeInt
 from phantom.interval import Portion
 from phantom.iso3166 import ParsedAlpha2
 from phantom.negated import SequenceNotStr
+from phantom.predicates import boolean
 from phantom.predicates.numeric import odd
 from phantom.re import FullMatch
 from phantom.re import Match
@@ -46,6 +52,26 @@ class FullMatchType(FullMatch, pattern=r"^[A-Z]{2}[0-9]{2}$"): ...
 class OddSize(PhantomSized[int], len=odd): ...
 
 
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+class MappingPhantom(
+    Mapping[K, V],
+    Phantom,
+    Generic[K, V],
+    predicate=boolean.true,
+    abstract=True,
+): ...
+
+
+T1 = TypeVar("T1")
+T2 = TypeVar("T2")
+
+
+class Pair(tuple[T1, T2], Phantom, Generic[T1, T2], predicate=boolean.true): ...
+
+
 class DataModel(pydantic.BaseModel):
     exclusive: ExclusiveType
     inclusive: InclusiveType
@@ -66,11 +92,13 @@ class DataModel(pydantic.BaseModel):
     phone_number: PhoneNumber
     formatted_phone_number: FormattedPhoneNumber
     sequence_not_str: SequenceNotStr[int]
+    fixed_pair: Pair[int, str]
+    mapping: MappingPhantom[str, int]
 
 
 class TestShippedTypesImplementsSchema:
     def test_interval_open_implements_schema(self):
-        assert DataModel.schema()["properties"]["exclusive"] == {
+        assert DataModel.model_json_schema()["properties"]["exclusive"] == {
             "exclusiveMinimum": 0,
             "exclusiveMaximum": 100,
             "description": "A value in the exclusive range (0, 100).",
@@ -79,7 +107,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_interval_closed_implements_schema(self):
-        assert DataModel.schema()["properties"]["inclusive"] == {
+        assert DataModel.model_json_schema()["properties"]["inclusive"] == {
             "description": "A value in the inclusive range [-1, 1].",
             "minimum": -1,
             "maximum": 1,
@@ -88,7 +116,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_interval_exclusive_inclusive_implements_schema(self):
-        assert DataModel.schema()["properties"]["exclusive_inclusive"] == {
+        assert DataModel.model_json_schema()["properties"]["exclusive_inclusive"] == {
             "description": "A value in the half-open range (0, 100].",
             "exclusiveMinimum": 0,
             "maximum": 100,
@@ -97,7 +125,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_interval_inclusive_exclusive_implements_schema(self):
-        assert DataModel.schema()["properties"]["inclusive_exclusive"] == {
+        assert DataModel.model_json_schema()["properties"]["inclusive_exclusive"] == {
             "title": "InclusiveExclusiveType",
             "description": "A value in the half-open range [-100, 0).",
             "minimum": -100,
@@ -106,7 +134,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_interval_negative_int_implements_schema(self):
-        assert DataModel.schema()["properties"]["negative_int"] == {
+        assert DataModel.model_json_schema()["properties"]["negative_int"] == {
             "title": "NegativeInt",
             "maximum": 0,
             "description": "An integer value in the inclusive range (-∞, 0].",
@@ -114,7 +142,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_interval_natural_implements_schema(self):
-        assert DataModel.schema()["properties"]["natural"] == {
+        assert DataModel.model_json_schema()["properties"]["natural"] == {
             "title": "Natural",
             "description": "An integer value in the inclusive range [0, ∞).",
             "minimum": 0,
@@ -122,7 +150,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_interval_portion_implements_schema(self):
-        assert DataModel.schema()["properties"]["portion"] == {
+        assert DataModel.model_json_schema()["properties"]["portion"] == {
             "title": "Portion",
             "description": "A float value in the inclusive range [0, 1].",
             "minimum": 0,
@@ -131,7 +159,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_tz_aware_implements_schema(self):
-        assert DataModel.schema()["properties"]["tz_aware"] == {
+        assert DataModel.model_json_schema()["properties"]["tz_aware"] == {
             "title": "TZAware",
             "description": "A date-time with timezone data.",
             "type": "string",
@@ -139,7 +167,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_tz_naive_implements_schema(self):
-        assert DataModel.schema()["properties"]["tz_naive"] == {
+        assert DataModel.model_json_schema()["properties"]["tz_naive"] == {
             "title": "TZNaive",
             "description": "A date-time without timezone data.",
             "type": "string",
@@ -147,7 +175,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_re_match_implements_schema(self):
-        assert DataModel.schema()["properties"]["match"] == {
+        assert DataModel.model_json_schema()["properties"]["match"] == {
             "title": "MatchType",
             "description": (
                 "A string starting with a match of the format regular expression."
@@ -157,7 +185,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_re_full_match_implements_schema(self):
-        assert DataModel.schema()["properties"]["full_match"] == {
+        assert DataModel.model_json_schema()["properties"]["full_match"] == {
             "title": "FullMatchType",
             "description": "A string that matches the format regular expression.",
             "type": "string",
@@ -165,24 +193,25 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_sized_non_empty_implements_schema(self):
-        assert DataModel.schema()["properties"]["non_empty"] == {
-            "allOf": [{"type": "integer"}],
+        assert DataModel.model_json_schema()["properties"]["non_empty"] == {
             "title": "NonEmpty",
             "type": "array",
             "description": "A non-empty array.",
             "minItems": 1,
+            "items": {"type": "integer"},
         }
 
     def test_sized_empty_implements_schema(self):
-        assert DataModel.schema()["properties"]["empty"] == {
+        assert DataModel.model_json_schema()["properties"]["empty"] == {
             "title": "Empty",
             "type": "array",
             "description": "An empty array.",
             "maxItems": 0,
+            "items": {},
         }
 
     def test_sized_non_empty_str_implements_schema(self):
-        assert DataModel.schema()["properties"]["non_empty_str"] == {
+        assert DataModel.model_json_schema()["properties"]["non_empty_str"] == {
             "title": "NonEmptyStr",
             "type": "string",
             "description": "A non-empty string.",
@@ -190,13 +219,14 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_phantom_sized_implements_schema(self):
-        assert DataModel.schema()["properties"]["odd_size"] == {
+        assert DataModel.model_json_schema()["properties"]["odd_size"] == {
             "title": "OddSize",
             "type": "array",
+            "items": {"type": "integer"},
         }
 
     def test_country_code_implements_schema(self):
-        assert DataModel.schema()["properties"]["country"] == {
+        assert DataModel.model_json_schema()["properties"]["country"] == {
             "title": "Alpha2",
             "description": "ISO3166-1 alpha-2 country code",
             "examples": ["NR", "KZ", "ET", "VC", "AE", "NZ", "SX", "XK", "AX"],
@@ -205,7 +235,7 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_phone_number_implements_schema(self):
-        assert DataModel.schema()["properties"]["phone_number"] == {
+        assert DataModel.model_json_schema()["properties"]["phone_number"] == {
             "title": "PhoneNumber",
             "description": "A valid E.164 phone number.",
             "type": "string",
@@ -213,7 +243,9 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_formatted_phone_number_implements_schema(self):
-        assert DataModel.schema()["properties"]["formatted_phone_number"] == {
+        assert DataModel.model_json_schema()["properties"][
+            "formatted_phone_number"
+        ] == {
             "title": "PhoneNumber",
             "description": "A valid E.164 phone number.",
             "type": "string",
@@ -221,8 +253,25 @@ class TestShippedTypesImplementsSchema:
         }
 
     def test_sequence_not_str_implements_schema(self):
-        assert DataModel.schema()["properties"]["sequence_not_str"] == {
+        assert DataModel.model_json_schema()["properties"]["sequence_not_str"] == {
             "title": "SequenceNotStr",
             "type": "array",
             "items": {"type": "integer"},
+        }
+
+    def test_fixed_tuple_implements_schema(self):
+        assert DataModel.model_json_schema()["properties"]["fixed_pair"] == {
+            "title": "Pair",
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [{"type": "integer"}, {"type": "string"}],
+            "items": {},
+        }
+
+    def test_mapping_implements_schema(self):
+        assert DataModel.model_json_schema()["properties"]["mapping"] == {
+            "title": "MappingPhantom",
+            "type": "object",
+            "additionalProperties": {"type": "integer"},
         }

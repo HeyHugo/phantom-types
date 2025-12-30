@@ -139,7 +139,7 @@ class Person(BaseModel):
     created: TZAware
 
 
-print(json.dumps(Person.schema(), indent=2))
+print(json.dumps(Person.model_json_schema(), indent=2))
 ```
 
 The code above outputs the following JSONSchema.
@@ -213,7 +213,7 @@ $ make test-typing
 [typeguard]: https://github.com/agronholm/typeguard
 [beartype]: https://github.com/beartype/beartype
 [dbc]: https://en.wikipedia.org/wiki/Design_by_contract
-[pydantic]: https://pydantic-docs.helpmanual.io/
+[pydantic]: https://docs.pydantic.dev/latest/
 [pydantic-support]:
   https://phantom-types.readthedocs.io/en/stable/pages/pydantic-support.html
 [goose]: https://github.com/antonagestam/goose

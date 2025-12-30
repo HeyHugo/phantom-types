@@ -7,6 +7,13 @@ from phantom.datetime import TZAware
 from phantom.datetime import TZNaive
 from phantom.errors import MissingDependency
 
+try:
+    import dateutil.parser  # noqa: F401
+
+    HAS_DATEUTIL = True
+except ImportError:
+    HAS_DATEUTIL = False
+
 parametrize_aware = pytest.mark.parametrize(
     "dt",
     (
@@ -132,6 +139,7 @@ class TestTZAware:
         assert TZAware.parse(value) == expected
 
     @pytest.mark.no_external
+    @pytest.mark.skipif(HAS_DATEUTIL, reason="python-dateutil is installed")
     @parametrize_aware_str
     def test_parse_str_without_dateutil_raises_missing_dependency(
         self,
@@ -185,6 +193,7 @@ class TestTZNaive:
         assert TZNaive.parse(value) == expected
 
     @pytest.mark.no_external
+    @pytest.mark.skipif(HAS_DATEUTIL, reason="python-dateutil is installed")
     @parametrize_naive_str
     def test_parse_str_without_dateutil_raises_missing_dependency(
         self,

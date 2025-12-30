@@ -1,14 +1,14 @@
 Pydantic Support
 ================
 
-phantom-types supports pydantic_ out of the box by providing a
-:func:`__get_validators__() <phantom.Phantom.__get_validators__>` hook
-on the base :class:`Phantom <phantom.Phantom>` class. Most of the shipped types also
-implements full JSON Schema and OpenAPI support.
+phantom-types supports pydantic_ out of the box by providing
+:func:`__get_pydantic_core_schema__() <phantom.Phantom.__get_pydantic_core_schema__>`
+hooks on the base :class:`Phantom <phantom.Phantom>` class. Most of the shipped types
+also implement JSON Schema and OpenAPI support.
 
-.. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _pydantic: https://docs.pydantic.dev/latest/
 
-To make a phantom type compatible with pydantic, all you need to do is override
+To customize a phantom type's JSON schema, override
 :func:`Phantom.__schema__() <phantom.Phantom.__schema__>`:
 
 .. code-block:: python
