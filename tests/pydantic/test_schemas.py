@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from collections.abc import Mapping
 from typing import Generic
 from typing import TypeVar
@@ -65,6 +66,9 @@ class MappingPhantom(
 ): ...
 
 
+class ConcreteMapping(Mapping[str, int], Phantom, predicate=boolean.true): ...
+
+
 T1 = TypeVar("T1")
 T2 = TypeVar("T2")
 
@@ -94,6 +98,24 @@ class DataModel(pydantic.BaseModel):
     sequence_not_str: SequenceNotStr[int]
     fixed_pair: Pair[int, str]
     mapping: MappingPhantom[str, int]
+
+
+class ValidationModel(pydantic.BaseModel):
+    mapping: ConcreteMapping
+
+
+class ImmutableMapping(Mapping[str, int]):
+    def __init__(self, items: dict[str, int]) -> None:
+        self._items = items
+
+    def __getitem__(self, key: str) -> int:
+        return self._items[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
 
 
 class TestShippedTypesImplementsSchema:
@@ -275,3 +297,21 @@ class TestShippedTypesImplementsSchema:
             "type": "object",
             "additionalProperties": {"type": "integer"},
         }
+
+
+class TestPydanticValidation:
+    def test_mapping_accepts_dict(self):
+        model = ValidationModel.model_validate({"mapping": {"a": 1}})
+
+        assert model.mapping == {"a": 1}
+
+    def test_mapping_accepts_non_dict_mapping(self):
+        mapping = ImmutableMapping({"a": 1})
+
+        model = ValidationModel.model_validate({"mapping": mapping})
+
+        assert model.mapping is mapping
+
+    def test_mapping_rejects_invalid_values(self):
+        with pytest.raises(pydantic.ValidationError):
+            ValidationModel.model_validate({"mapping": {"a": "x"}})

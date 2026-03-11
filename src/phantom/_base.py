@@ -237,12 +237,28 @@ class PhantomBase(SchemaField, metaclass=PhantomMeta):
         try:
             key_schema = handler.generate_schema(key_type)
             value_schema = handler.generate_schema(value_type)
+            from pydantic_core import SchemaValidator
         except (schema_error, TypeError):
             return None
-        return core_schema.dict_schema(
-            key_schema,
-            value_schema,
-            strict=True,
+
+        key_validator = SchemaValidator(key_schema)
+        value_validator = SchemaValidator(value_schema)
+
+        def validate_mapping(value: Any) -> Any:
+            if not isinstance(value, Mapping):
+                raise TypeError("value is not a valid mapping")
+            for key, item_value in value.items():
+                key_validator.validate_python(key)
+                value_validator.validate_python(item_value)
+            return value
+
+        return core_schema.no_info_plain_validator_function(
+            validate_mapping,
+            json_schema_input_schema=core_schema.dict_schema(
+                key_schema,
+                value_schema,
+                strict=True,
+            ),
         )
 
     @classmethod
